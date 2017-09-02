@@ -58,6 +58,12 @@ module.exports = function(Chart) {
 			if (!ns.firstRun) {
 				ns.options = helpers.initConfig(chartInstance.options.annotation || {});
 			} else {
+				chartInstance.chartArea = {
+					left: 0,
+					top: 0,
+					right: 0,
+					bottom: 0
+				};
 				ns.firstRun = false;
 			}
 
