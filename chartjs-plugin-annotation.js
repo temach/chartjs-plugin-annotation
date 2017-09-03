@@ -1,7 +1,7 @@
 /*!
  * chartjs-plugin-annotation.js
  * http://chartjs.org/
- * Version: 0.5.5
+ * Version: 0.5.6
  *
  * Copyright 2016 Evert Timberg
  * Released under the MIT license
@@ -70,6 +70,12 @@ module.exports = function(Chart) {
 			if (!ns.firstRun) {
 				ns.options = helpers.initConfig(chartInstance.options.annotation || {});
 			} else {
+				chartInstance.chartArea = {
+					left: 0,
+					top: 0,
+					right: 0,
+					bottom: 0
+				};
 				ns.firstRun = false;
 			}
 
@@ -525,7 +531,10 @@ module.exports = function(Chart) {
 
 			// Set the data range for this annotation
 			model.ranges = {};
-
+			
+			var min = 0;
+			var max = 0;
+			
 			if (xScale) {
 				min = helpers.isValid(options.xMin) ? options.xMin : xScale.getPixelForValue(chartArea.left);
 				max = helpers.isValid(options.xMax) ? options.xMax : xScale.getPixelForValue(chartArea.right);
