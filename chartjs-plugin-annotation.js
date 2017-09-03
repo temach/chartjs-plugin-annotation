@@ -14,7 +14,6 @@ module.exports = function(Chart) {
 	var chartHelpers = Chart.helpers;
 
 	var helpers = require('./helpers.js')(Chart);
-	var events = require('./events.js')(Chart);
 
 	var annotationTypes = Chart.Annotation.types;
 
@@ -120,20 +119,6 @@ module.exports = function(Chart) {
 		beforeDatasetsDraw: draw('beforeDatasetsDraw'),
 		afterDatasetsDraw: draw('afterDatasetsDraw'),
 		afterDraw: draw('afterDraw'),
-		afterInit: function(chartInstance) {
-			// Detect and intercept events that happen on an annotation element
-			var watchFor = chartInstance.annotation.options.events;
-			if (chartHelpers.isArray(watchFor) && watchFor.length > 0) {
-				var canvas = chartInstance.chart.canvas;
-				var eventHandler = events.dispatcher.bind(chartInstance);
-				events.collapseHoverEvents(watchFor).forEach(function(eventName) {
-					chartHelpers.addEvent(canvas, eventName, eventHandler);
-					chartInstance.annotation.onDestroy.push(function() {
-						chartHelpers.removeEvent(canvas, eventName, eventHandler);
-					});
-				});
-			}
-		},
 		destroy: function(chartInstance) {
 			var deregisterers = chartInstance.annotation.onDestroy;
 			while (deregisterers.length > 0) {
@@ -143,7 +128,7 @@ module.exports = function(Chart) {
 	};
 };
 
-},{"./events.js":4,"./helpers.js":5}],3:[function(require,module,exports){
+},{"./helpers.js":4}],3:[function(require,module,exports){
 module.exports = function(Chart) {
 	var chartHelpers = Chart.helpers;
 	
@@ -169,116 +154,6 @@ module.exports = function(Chart) {
 };
 
 },{}],4:[function(require,module,exports){
-module.exports = function(Chart) {
-	var chartHelpers = Chart.helpers;
-	var helpers = require('./helpers.js')(Chart);
-
-	function collapseHoverEvents(events) {
-		var hover = false;
-		var filteredEvents = events.filter(function(eventName) {
-			switch (eventName) {
-				case 'mouseenter':
-				case 'mouseover':
-				case 'mouseout':
-				case 'mouseleave':
-					hover = true;
-					return false;
-
-				default:
-					return true;
-			}
-		});
-		if (hover && filteredEvents.indexOf('mousemove') === -1) {
-			filteredEvents.push('mousemove');
-		}
-		return filteredEvents;
-	}
-
-	function dispatcher(e) {
-		var ns = this.annotation;
-		var elements = helpers.elements(this);
-		var position = chartHelpers.getRelativePosition(e, this.chart);
-		var element = helpers.getNearestItems(elements, position);
-		var events = collapseHoverEvents(ns.options.events);
-		var dblClickSpeed = ns.options.dblClickSpeed;
-		var eventHandlers = [];
-		var eventHandlerName = helpers.getEventHandlerName(e.type);
-		var options = (element || {}).options;
-
-		// Detect hover events
-		if (e.type === 'mousemove') {
-			if (element && !element.hovering) {
-				// hover started
-				['mouseenter', 'mouseover'].forEach(function(eventName) {
-					var eventHandlerName = helpers.getEventHandlerName(eventName);
-					var hoverEvent = helpers.createMouseEvent(eventName, e); // recreate the event to match the handler
-					element.hovering = true;
-					if (typeof options[eventHandlerName] === 'function') {
-						eventHandlers.push([ options[eventHandlerName], hoverEvent, element ]);
-					}
-				});
-			} else if (!element) {
-				// hover ended
-				elements.forEach(function(element) {
-					if (element.hovering) {
-						element.hovering = false;
-						var options = element.options;
-						['mouseout', 'mouseleave'].forEach(function(eventName) {
-							var eventHandlerName = helpers.getEventHandlerName(eventName);
-							var hoverEvent = helpers.createMouseEvent(eventName, e); // recreate the event to match the handler
-							if (typeof options[eventHandlerName] === 'function') {
-								eventHandlers.push([ options[eventHandlerName], hoverEvent, element ]);
-							}
-						});
-					}
-				});
-			}
-		}
-
-		// Suppress duplicate click events during a double click
-		// 1. click -> 2. click -> 3. dblclick
-		//
-		// 1: wait dblClickSpeed ms, then fire click
-		// 2: cancel (1) if it is waiting then wait dblClickSpeed ms then fire click, else fire click immediately
-		// 3: cancel (1) or (2) if waiting, then fire dblclick 
-		if (element && events.indexOf('dblclick') > -1 && typeof options.onDblclick === 'function') {
-			if (e.type === 'click' && typeof options.onClick === 'function') {
-				clearTimeout(element.clickTimeout);
-				element.clickTimeout = setTimeout(function() {
-					delete element.clickTimeout;
-					options.onClick.call(element, e);
-				}, dblClickSpeed);
-				e.stopImmediatePropagation();
-				e.preventDefault();
-				return;
-			} else if (e.type === 'dblclick' && element.clickTimeout) {
-				clearTimeout(element.clickTimeout);
-				delete element.clickTimeout;
-			}
-		}
-
-		// Dispatch the event to the usual handler, but only if we haven't substituted it
-		if (element && typeof options[eventHandlerName] === 'function' && eventHandlers.length === 0) {
-			eventHandlers.push([ options[eventHandlerName], e, element ]);
-		}
-
-		if (eventHandlers.length > 0) {
-			e.stopImmediatePropagation();
-			e.preventDefault();
-			eventHandlers.forEach(function(eventHandler) {
-				// [handler, event, element]
-				eventHandler[0].call(eventHandler[2], eventHandler[1]);
-			});
-		}
-	}
-
-	return {
-		dispatcher: dispatcher,
-		collapseHoverEvents: collapseHoverEvents
-	};
-};
-
-},{"./helpers.js":5}],5:[function(require,module,exports){
 function noop() {}
 
 function elements(chartInstance) {
@@ -465,7 +340,7 @@ module.exports = function(Chart) {
 };
 
 
-},{}],6:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 // Get the chart variable
 var Chart = require('chart.js');
 Chart = typeof(Chart) === 'function' ? Chart : window.Chart;
@@ -505,7 +380,6 @@ Chart.Annotation.labelDefaults = {
 Chart.Annotation.Element = require('./element.js')(Chart);
 
 Chart.Annotation.types = {
-	line: require('./types/line.js')(Chart),
 	box: require('./types/box.js')(Chart)
 };
 
@@ -514,7 +388,7 @@ var annotationPlugin = require('./annotation.js')(Chart);
 module.exports = annotationPlugin;
 Chart.pluginService.register(annotationPlugin);
 
-},{"./annotation.js":2,"./element.js":3,"./types/box.js":7,"./types/line.js":8,"chart.js":1}],7:[function(require,module,exports){
+},{"./annotation.js":2,"./element.js":3,"./types/box.js":6,"chart.js":1}],6:[function(require,module,exports){
 // Box Annotation implementation
 module.exports = function(Chart) {
 	var helpers = require('../helpers.js')(Chart);
@@ -658,273 +532,4 @@ module.exports = function(Chart) {
 	return BoxAnnotation;
 };
 
-},{"../helpers.js":5}],8:[function(require,module,exports){
-// Line Annotation implementation
-module.exports = function(Chart) {
-	var chartHelpers = Chart.helpers;
-	var helpers = require('../helpers.js')(Chart);
-
-	var horizontalKeyword = 'horizontal';
-	var verticalKeyword = 'vertical';
-
-	var LineAnnotation = Chart.Annotation.Element.extend({
-		setDataLimits: function() {
-			var model = this._model;
-			var options = this.options;
-
-			// Set the data range for this annotation
-			model.ranges = {};
-			model.ranges[options.scaleID] = {
-				min: options.value,
-				max: options.endValue || options.value
-			};
-		},
-		configure: function() {
-			var model = this._model;
-			var options = this.options;
-			var chartInstance = this.chartInstance;
-			var ctx = chartInstance.chart.ctx;
-
-			var scale = chartInstance.scales[options.scaleID];
-			var pixel, endPixel;
-			if (scale) {
-				pixel = helpers.isValid(options.value) ? scale.getPixelForValue(options.value) : NaN;
-				endPixel = helpers.isValid(options.endValue) ? scale.getPixelForValue(options.endValue) : pixel;
-			}
-
-			if (isNaN(pixel)) {
-				return;
-			}
-
-			var chartArea = chartInstance.chartArea;
-
-			// clip annotations to the chart area
-			model.clip = {
-				x1: chartArea.left,
-				x2: chartArea.right,
-				y1: chartArea.top,
-				y2: chartArea.bottom
-			};
-
-			if (this.options.mode == horizontalKeyword) {
-				model.x1 = chartArea.left;
-				model.x2 = chartArea.right;
-				model.y1 = pixel;
-				model.y2 = endPixel;
-			} else {
-				model.y1 = chartArea.top;
-				model.y2 = chartArea.bottom;
-				model.x1 = pixel;
-				model.x2 = endPixel;
-			}
-
-			model.line = new LineFunction(model);
-			model.mode = options.mode;
-
-			// Figure out the label:
-			model.labelBackgroundColor = options.label.backgroundColor;
-			model.labelFontFamily = options.label.fontFamily;
-			model.labelFontSize = options.label.fontSize;
-			model.labelFontStyle = options.label.fontStyle;
-			model.labelFontColor = options.label.fontColor;
-			model.labelXPadding = options.label.xPadding;
-			model.labelYPadding = options.label.yPadding;
-			model.labelCornerRadius = options.label.cornerRadius;
-			model.labelPosition = options.label.position;
-			model.labelXAdjust = options.label.xAdjust;
-			model.labelYAdjust = options.label.yAdjust;
-			model.labelEnabled = options.label.enabled;
-			model.labelContent = options.label.content;
-
-			ctx.font = chartHelpers.fontString(model.labelFontSize, model.labelFontStyle, model.labelFontFamily);
-			var textWidth = ctx.measureText(model.labelContent).width;
-			var textHeight = ctx.measureText('M').width;
-			var labelPosition = calculateLabelPosition(model, textWidth, textHeight, model.labelXPadding, model.labelYPadding);
-			model.labelX = labelPosition.x - model.labelXPadding;
-			model.labelY = labelPosition.y - model.labelYPadding;
-			model.labelWidth = textWidth + (2 * model.labelXPadding);
-			model.labelHeight = textHeight + (2 * model.labelYPadding);
-
-			model.borderColor = options.borderColor;
-			model.borderWidth = options.borderWidth;
-			model.borderDash = options.borderDash || [];
-			model.borderDashOffset = options.borderDashOffset || 0;
-		},
-		inRange: function(mouseX, mouseY) {
-			var model = this._model;
-			
-			return (
-				// On the line
-				model.line &&
-				model.line.intersects(mouseX, mouseY, this.getHeight())
-			) || (
-				// On the label
-				model.labelEnabled &&
-				model.labelContent &&
-				mouseX >= model.labelX && 
-				mouseX <= model.labelX + model.labelWidth && 
-				mouseY >= model.labelY && 
-				mouseY <= model.labelY + model.labelHeight
-			);
-		},
-		getCenterPoint: function() {
-			return {
-				x: (this._model.x2 + this._model.x1) / 2,
-				y: (this._model.y2 + this._model.y1) / 2
-			};
-		},
-		getWidth: function() {
-			return Math.abs(this._model.right - this._model.left);
-		},
-		getHeight: function() {
-			return this._model.borderWidth || 1;
-		},
-		getArea: function() {
-			return Math.sqrt(Math.pow(this.getWidth(), 2) + Math.pow(this.getHeight(), 2));
-		},
-		draw: function() {
-			var view = this._view;
-			var ctx = this.chartInstance.chart.ctx;
-
-			if (!view.clip) {
-				return;
-			}
-
-			ctx.save();
-
-			// Canvas setup
-			ctx.beginPath();
-			ctx.rect(view.clip.x1, view.clip.y1, view.clip.x2 - view.clip.x1, view.clip.y2 - view.clip.y1);
-			ctx.clip();
-
-			ctx.lineWidth = view.borderWidth;
-			ctx.strokeStyle = view.borderColor;
-
-			if (ctx.setLineDash) {
-				ctx.setLineDash(view.borderDash);
-			}
-			ctx.lineDashOffset = view.borderDashOffset;
-
-			// Draw
-			ctx.beginPath();
-			ctx.moveTo(view.x1, view.y1);
-			ctx.lineTo(view.x2, view.y2);
-			ctx.stroke();
-
-			if (view.labelEnabled && view.labelContent) {
-				ctx.beginPath();
-				ctx.rect(view.clip.x1, view.clip.y1, view.clip.x2 - view.clip.x1, view.clip.y2 - view.clip.y1);
-				ctx.clip();
-
-				ctx.fillStyle = view.labelBackgroundColor;
-				// Draw the tooltip
-				chartHelpers.drawRoundedRectangle(
-					ctx,
-					view.labelX, // x
-					view.labelY, // y
-					view.labelWidth, // width
-					view.labelHeight, // height
-					view.labelCornerRadius // radius
-				);
-				ctx.fill();
-
-				// Draw the text
-				ctx.font = chartHelpers.fontString(
-					view.labelFontSize,
-					view.labelFontStyle,
-					view.labelFontFamily
-				);
-				ctx.fillStyle = view.labelFontColor;
-				ctx.textAlign = 'center';
-				ctx.textBaseline = 'middle';
-				ctx.fillText(
-					view.labelContent,
-					view.labelX + (view.labelWidth / 2),
-					view.labelY + (view.labelHeight / 2)
-				);
-			}
-
-			ctx.restore();
-		}
-	});
-
-	function LineFunction(view) {
-		// Describe the line in slope-intercept form (y = mx + b).
-		// Note that the axes are rotated 90° CCW, which causes the
-		// x- and y-axes to be swapped.
-		var m = (view.x2 - view.x1) / (view.y2 - view.y1);
-		var b = view.x1 || 0;
-
-		this.m = m;
-		this.b = b;
-
-		this.getX = function(y) {
-			// Coordinates are relative to the origin of the canvas
-			return m * (y - view.y1) + b;
-		};
-
-		this.getY = function(x) {
-			return ((x - b) / m) + view.y1;
-		};
-
-		this.intersects = function(x, y, epsilon) {
-			epsilon = epsilon || 0.001;
-			var dy = this.getY(x),
-				dx = this.getX(y);
-			return (
-				(!isFinite(dy) || Math.abs(y - dy) < epsilon) &&
-				(!isFinite(dx) || Math.abs(x - dx) < epsilon)
-			);
-		};
-	}
-
-	function calculateLabelPosition(view, width, height, padWidth, padHeight) {
-		var line = view.line;
-		var ret = {}, xa = 0, ya = 0;
-
-		switch (true) {
-			// top align
-			case view.mode == verticalKeyword && view.labelPosition == "top":
-				ya = padHeight + view.labelYAdjust;
-				xa = (width / 2) + view.labelXAdjust;
-				ret.y = view.y1 + ya;
-				ret.x = (isFinite(line.m) ? line.getX(ret.y) : view.x1) - xa;
-			break;
-
-			// bottom align
-			case view.mode == verticalKeyword && view.labelPosition == "bottom":
-				ya = height + padHeight + view.labelYAdjust;
-				xa = (width / 2) + view.labelXAdjust;
-				ret.y = view.y2 - ya;
-				ret.x = (isFinite(line.m) ? line.getX(ret.y) : view.x1) - xa;
-			break;
-
-			// left align
-			case view.mode == horizontalKeyword && view.labelPosition == "left":
-				xa = padWidth + view.labelXAdjust;
-				ya = -(height / 2) + view.labelYAdjust;
-				ret.x = view.x1 + xa;
-				ret.y = line.getY(ret.x) + ya;
-			break;
-
-			// right align
-			case view.mode == horizontalKeyword && view.labelPosition == "right":
-				xa = width + padWidth + view.labelXAdjust;
-				ya = -(height / 2) + view.labelYAdjust;
-				ret.x = view.x2 - xa;
-				ret.y = line.getY(ret.x) + ya;
-			break;
-
-			// center align
-			default:
-				ret.x = ((view.x1 + view.x2 - width) / 2) + view.labelXAdjust;
-				ret.y = ((view.y1 + view.y2 - height) / 2) + view.labelYAdjust;
-		}
-
-		return ret;
-	}
-
-	return LineAnnotation;
-};
-
-},{"../helpers.js":5}]},{},[6]);
+},{"../helpers.js":4}]},{},[5]);

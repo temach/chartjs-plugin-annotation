@@ -37,7 +37,6 @@ Chart.Annotation.labelDefaults = {
 Chart.Annotation.Element = require('./element.js')(Chart);
 
 Chart.Annotation.types = {
-	line: require('./types/line.js')(Chart),
 	box: require('./types/box.js')(Chart)
 };
 

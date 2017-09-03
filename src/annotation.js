@@ -2,7 +2,6 @@ module.exports = function(Chart) {
 	var chartHelpers = Chart.helpers;
 
 	var helpers = require('./helpers.js')(Chart);
-	var events = require('./events.js')(Chart);
 
 	var annotationTypes = Chart.Annotation.types;
 
@@ -108,20 +107,6 @@ module.exports = function(Chart) {
 		beforeDatasetsDraw: draw('beforeDatasetsDraw'),
 		afterDatasetsDraw: draw('afterDatasetsDraw'),
 		afterDraw: draw('afterDraw'),
-		afterInit: function(chartInstance) {
-			// Detect and intercept events that happen on an annotation element
-			var watchFor = chartInstance.annotation.options.events;
-			if (chartHelpers.isArray(watchFor) && watchFor.length > 0) {
-				var canvas = chartInstance.chart.canvas;
-				var eventHandler = events.dispatcher.bind(chartInstance);
-				events.collapseHoverEvents(watchFor).forEach(function(eventName) {
-					chartHelpers.addEvent(canvas, eventName, eventHandler);
-					chartInstance.annotation.onDestroy.push(function() {
-						chartHelpers.removeEvent(canvas, eventName, eventHandler);
-					});
-				});
-			}
-		},
 		destroy: function(chartInstance) {
 			var deregisterers = chartInstance.annotation.onDestroy;
 			while (deregisterers.length > 0) {
